@@ -1,26 +1,43 @@
 import streamlit as st
 import pandas as pd
+from datetime import datetime
 
-st.title("📊 Mi Panel de Inversión")
+CONFIGURACIÓN
+URL_LOG = "https://docs.google.com/spreadsheets/d/e/2PACX-1vT_BWK0W-ckq-8381mddbvScIyjaGyhsRUBBZhckjEmXZTjmCX-DE5rztmylPv6KAVJQVkhH3k9-YCm/pub?gid=1403494531&single=true&output=csv"
+URL_APP1 = "https://docs.google.com/spreadsheets/d/e/2PACX-1vT_BWK0W-ckq-8381mddbvScIyjaGyhsRUBBZhckjEmXZTjmCX-DE5rztmylPv6KAVJQVkhH3k9-YCm/pub?gid=153180669&single=true&output=csv"
+URL_FORMULARIO = "https://docs.google.com/forms/d/e/1FAIpQLSfnR3UDEnLAg1hqNfS4vApGfAR3e-wT_WyMDMS_Xqg9rc0C-Q/viewform"
 
-# PEGA AQUÍ LA URL DE TU EXCEL
-URL_EXCEL = "TU_URL_AQUÍ"
+st.set_page_config(page_title="InversionData Pro", page_icon="📈")
 
-# Esta pequeña función convierte la URL normal en una de descarga directa
-def conseguir_url_csv(url):
-    try:
-        id_archivo = url.split("/")[-2]
-        return f"https://docs.google.com/spreadsheets/d/{id_archivo}/export?format=csv"
-    except:
-        return None
+@st.cache_data(ttl=10)
+def cargar_datos():
+df_v = pd.read_csv(URL_APP1)
+try:
+df_l = pd.read_csv(URL_LOG)
+except:
+df_l = pd.DataFrame(columns=['Marca temporal', 'Activo', 'Valor'])
+return df_v, df_l
 
-if URL_EXCEL != "TU_URL_AQUÍ":
-    url_final = conseguir_url_csv(URL_EXCEL)
-    try:
-        df = pd.read_csv(url_final)
-        st.success("✅ ¡CONECTADO AL INSTANTE!")
-        st.dataframe(df)
-    except Exception as e:
-        st.error(f"No pude leer el Excel. Revisa que sea público: {e}")
-else:
-    st.info("Por favor, pega la URL de tu Google Sheet en el código.")
+df_vars, df_log = cargar_datos()
+hoy = datetime.now().strftime('%d/%m/%Y')
+
+st.title("💰 Mi Consola Financiera")
+st.info(f"Fecha de hoy: {hoy}")
+
+st.subheader("Estado de Carga")
+for activo in df_vars.iloc[:, 0]:
+actualizado = False
+if not df_log.empty:
+actualizado = any((df_log.iloc[:, 1] == activo) & (df_log.iloc[:, 0].str.contains(hoy)))
+col1, col2 = st.columns([0.2, 0.8])
+with col1:
+st.write("🟢" if actualizado else "🔴")
+with col2:
+st.write(f"{activo}")
+
+st.divider()
+
+st.markdown(f'<a href="{URL_FORMULARIO}" target="_blank" style="text-decoration:none;"><div style="background-color:#28a745;color:white;padding:20px;text-align:center;border-radius:15px;font-weight:bold;font-size:20px;">➕ INTRODUCIR DATOS</div></a>', unsafe_allow_html=True)
+
+if st.button("🔄 Refrescar Semáforo"):
+st.rerun()
