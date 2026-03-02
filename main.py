@@ -2,54 +2,46 @@ import streamlit as st
 import gspread
 from google.oauth2 import service_account
 
-# --- CONFIGURACIÓN DE LAS CREDENCIALES ---
-
-def conseguir_cliente_google():
-    # 1. Leemos los secretos que pegaste en Streamlit Cloud
+def conectar_seguro():
     try:
-        creds_dict = st.secrets["gcp_service_account"]
-    except KeyError:
-        st.error("No se encontró la sección [gcp_service_account] en los Secrets de Streamlit.")
+        s = st.secrets["gcp_service_account"]
+        
+        # Limpieza extrema de la llave
+        llave = s["private_key"]
+        # 1. Quitamos comillas si se colaron
+        llave = llave.strip("'").strip('"')
+        # 2. Convertimos los \n de texto en saltos de línea reales
+        llave = llave.replace("\\n", "\n")
+        # 3. Quitamos espacios vacíos al inicio y final
+        llave = llave.strip()
+
+        info = {
+            "type": "service_account",
+            "project_id": s["project_id"],
+            "private_key_id": s["private_key_id"],
+            "private_key": llave,
+            "client_email": s["client_email"],
+            "token_uri": s["token_uri"],
+        }
+
+        creds = service_account.Credentials.from_service_account_info(
+            info, 
+            scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+        )
+        return gspread.authorize(creds)
+    except Exception as e:
+        st.error(f"Error al procesar la llave: {e}")
         return None
-
-    # 2. LIMPIADORA: Corregimos problemas comunes de formato en la llave privada
-    if "private_key" in creds_dict:
-        # Esto arregla el error de "Invalid data" o problemas con el signo =
-        creds_dict_copy = dict(creds_dict)
-        creds_dict_copy["private_key"] = creds_dict_copy["private_key"].replace("\\n", "\n")
-    else:
-        st.error("La llave 'private_key' no está dentro de tus secretos.")
-        return None
-
-    # 3. Creamos el objeto de credenciales oficial de Google
-    scopes = [
-        "https://www.googleapis.com/auth/spreadsheets",
-        "https://www.googleapis.com/auth/drive"
-    ]
-    
-    credenciales = service_account.Credentials.from_service_account_info(
-        creds_dict_copy, 
-        scopes=scopes
-    )
-    
-    # 4. Autorizamos la conexión
-    return gspread.authorize(credenciales)
-
-# --- INICIO DE LA APLICACIÓN ---
 
 st.title("Mi App de Inversión")
 
-# Intentamos conectar
-gc = conseguir_cliente_google()
+gc = conectar_seguro()
 
 if gc:
-    st.success("¡Conexión establecida con éxito!")
-    
-    # IMPORTANTE: Cambia "Nombre de tu Excel" por el nombre real de tu archivo
-    # Y recuerda compartir el Excel con el email de la cuenta de servicio
     try:
-        # Ejemplo: sh = gc.open("Tu Hoja de Google")
-        # st.write("Conectado a la hoja correctamente")
-        pass
+        # Usamos el nombre que vi en tu foto
+        sh = gc.open("Inversiondata")
+        st.success("¡CONECTADO CON ÉXITO!")
+        st.dataframe(sh.get_worksheet(0).get_all_records())
     except Exception as e:
-        st.info("Conexión técnica lista. Ahora asegúrate de haber compartido tu Excel con el email de la Service Account.")
+        st.warning(f"Conectado a Google, pero no encuentro el Excel: {e}")
