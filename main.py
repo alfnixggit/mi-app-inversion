@@ -1,48 +1,50 @@
 import streamlit as st
 import gspread
 from google.oauth2 import service_account
+import re
 
-def conectar_blindado():
+def conectar_definitivo():
     try:
-        # Extraemos los datos del secreto
+        # Obtenemos los datos del cuadro de Secrets
         s = dict(st.secrets["gcp_service_account"])
-        
-        # --- PROCESO DE LIMPIEZA TOTAL ---
         pk = s["private_key"]
-        
-        # 1. Quitamos espacios en blanco, puntos o comas accidentales al inicio/final
-        pk = pk.strip().strip('.').strip(',')
-        
-        # 2. Corregimos los saltos de línea (por si se pegaron como \n)
+
+        # --- LIMPIEZA QUIRÚRGICA ---
+        # 1. Si la llave tiene \n escrito como texto, lo convertimos a salto real
         pk = pk.replace("\\n", "\n")
         
-        # 3. Nos aseguramos de que no haya espacios al inicio de cada línea interna
-        lineas = [linea.strip() for linea in pk.split('\n') if linea.strip()]
-        pk_limpia = "\n".join(lineas)
-        
-        # Guardamos la llave limpia
+        # 2. Extraemos solo lo que hay entre los guiones de BEGIN y END
+        # Esto elimina cualquier carácter extraño (como el guion bajo del error) que esté fuera
+        if "-----BEGIN PRIVATE KEY-----" in pk:
+            cuerpo = pk.split("-----BEGIN PRIVATE KEY-----")[1].split("-----END PRIVATE KEY-----")[0]
+            # Limpiamos espacios y saltos de línea vacíos del cuerpo
+            cuerpo = cuerpo.strip()
+            # Reconstruimos la llave perfecta
+            pk_limpia = f"-----BEGIN PRIVATE KEY-----\n{cuerpo}\n-----END PRIVATE KEY-----"
+        else:
+            pk_limpia = pk.strip()
+
         s["private_key"] = pk_limpia
 
-        # Configuración de Google
+        # Configuración de permisos
         scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
         creds = service_account.Credentials.from_service_account_info(s, scopes=scopes)
         return gspread.authorize(creds)
     except Exception as e:
-        st.error(f"Error detectado en la llave: {e}")
+        st.error(f"Error en el formato de la llave: {e}")
         return None
 
-# --- INTERFAZ ---
+# --- APP ---
 st.title("📊 Mi Panel de Inversión")
 
-gc = conectar_blindado()
+gc = conectar_definitivo()
 
 if gc:
     try:
-        # Conectamos con tu archivo "Inversiondata"
+        # Abrimos tu archivo (asegúrate que el nombre sea exacto)
         sh = gc.open("Inversiondata")
-        hoja = sh.get_worksheet(0)
-        st.success("✅ ¡Conectado correctamente!")
-        st.dataframe(hoja.get_all_records())
+        st.success("✅ ¡CONECTADO!")
+        st.dataframe(sh.get_worksheet(0).get_all_records())
     except Exception as e:
-        st.warning(f"Llave aceptada, pero hay un problema con el Excel: {e}")
-        st.info("Asegúrate de haber compartido el Excel con: python-app@careful-broker-395321.iam.gserviceaccount.com")
+        st.warning(f"Llave aceptada, pero no accedo al archivo: {e}")
+        st.info("Asegúrate de haber invitado a: python-app@careful-broker-395321.iam.gserviceaccount.com")
