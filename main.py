@@ -1,42 +1,26 @@
 import streamlit as st
-import gspread
-from google.oauth2 import service_account
+import pandas as pd
 
-def conectar_sin_errores():
+st.title("📊 Mi Panel de Inversión")
+
+# PEGA AQUÍ LA URL DE TU EXCEL
+URL_EXCEL = "TU_URL_AQUÍ"
+
+# Esta pequeña función convierte la URL normal en una de descarga directa
+def conseguir_url_csv(url):
     try:
-        s = dict(st.secrets["gcp_service_account"])
-        pk = s["private_key"].replace("\\n", "\n")
-        
-        # Limpieza de encabezados
-        if "-----BEGIN PRIVATE KEY-----" in pk:
-            cuerpo = pk.split("-----BEGIN PRIVATE KEY-----")[1].split("-----END PRIVATE KEY-----")[0]
-        else:
-            cuerpo = pk
-
-        # Filtro de caracteres y REPARACIÓN DE PADDING
-        cuerpo = "".join(c.strip() for c in cuerpo if c in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=")
-        
-        # Forzar que el largo sea múltiplo de 4 (Arregla el InvalidPadding)
-        while len(cuerpo) % 4 != 0:
-            cuerpo += "="
-
-        pk_final = f"-----BEGIN PRIVATE KEY-----\n{cuerpo}\n-----END PRIVATE KEY-----"
-        s["private_key"] = pk_final
-
-        creds = service_account.Credentials.from_service_account_info(
-            s, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-        )
-        return gspread.authorize(creds)
-    except Exception as e:
-        st.error(f"Error: {e}")
+        id_archivo = url.split("/")[-2]
+        return f"https://docs.google.com/spreadsheets/d/{id_archivo}/export?format=csv"
+    except:
         return None
 
-st.title("📊 Panel de Inversión")
-gc = conectar_sin_errores()
-if gc:
+if URL_EXCEL != "TU_URL_AQUÍ":
+    url_final = conseguir_url_csv(URL_EXCEL)
     try:
-        sh = gc.open("Inversiondata")
-        st.success("¡POR FIN!")
-        st.dataframe(sh.get_worksheet(0).get_all_records())
+        df = pd.read_csv(url_final)
+        st.success("✅ ¡CONECTADO AL INSTANTE!")
+        st.dataframe(df)
     except Exception as e:
-        st.info(f"Conexión OK. Error de acceso al archivo: {e}")
+        st.error(f"No pude leer el Excel. Revisa que sea público: {e}")
+else:
+    st.info("Por favor, pega la URL de tu Google Sheet en el código.")
