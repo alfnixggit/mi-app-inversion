@@ -2,46 +2,47 @@ import streamlit as st
 import gspread
 from google.oauth2 import service_account
 
-def conectar_seguro():
+def conectar_blindado():
     try:
-        s = st.secrets["gcp_service_account"]
+        # Extraemos los datos del secreto
+        s = dict(st.secrets["gcp_service_account"])
         
-        # Limpieza extrema de la llave
-        llave = s["private_key"]
-        # 1. Quitamos comillas si se colaron
-        llave = llave.strip("'").strip('"')
-        # 2. Convertimos los \n de texto en saltos de línea reales
-        llave = llave.replace("\\n", "\n")
-        # 3. Quitamos espacios vacíos al inicio y final
-        llave = llave.strip()
+        # --- PROCESO DE LIMPIEZA TOTAL ---
+        pk = s["private_key"]
+        
+        # 1. Quitamos espacios en blanco, puntos o comas accidentales al inicio/final
+        pk = pk.strip().strip('.').strip(',')
+        
+        # 2. Corregimos los saltos de línea (por si se pegaron como \n)
+        pk = pk.replace("\\n", "\n")
+        
+        # 3. Nos aseguramos de que no haya espacios al inicio de cada línea interna
+        lineas = [linea.strip() for linea in pk.split('\n') if linea.strip()]
+        pk_limpia = "\n".join(lineas)
+        
+        # Guardamos la llave limpia
+        s["private_key"] = pk_limpia
 
-        info = {
-            "type": "service_account",
-            "project_id": s["project_id"],
-            "private_key_id": s["private_key_id"],
-            "private_key": llave,
-            "client_email": s["client_email"],
-            "token_uri": s["token_uri"],
-        }
-
-        creds = service_account.Credentials.from_service_account_info(
-            info, 
-            scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-        )
+        # Configuración de Google
+        scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+        creds = service_account.Credentials.from_service_account_info(s, scopes=scopes)
         return gspread.authorize(creds)
     except Exception as e:
-        st.error(f"Error al procesar la llave: {e}")
+        st.error(f"Error detectado en la llave: {e}")
         return None
 
-st.title("Mi App de Inversión")
+# --- INTERFAZ ---
+st.title("📊 Mi Panel de Inversión")
 
-gc = conectar_seguro()
+gc = conectar_blindado()
 
 if gc:
     try:
-        # Usamos el nombre que vi en tu foto
+        # Conectamos con tu archivo "Inversiondata"
         sh = gc.open("Inversiondata")
-        st.success("¡CONECTADO CON ÉXITO!")
-        st.dataframe(sh.get_worksheet(0).get_all_records())
+        hoja = sh.get_worksheet(0)
+        st.success("✅ ¡Conectado correctamente!")
+        st.dataframe(hoja.get_all_records())
     except Exception as e:
-        st.warning(f"Conectado a Google, pero no encuentro el Excel: {e}")
+        st.warning(f"Llave aceptada, pero hay un problema con el Excel: {e}")
+        st.info("Asegúrate de haber compartido el Excel con: python-app@careful-broker-395321.iam.gserviceaccount.com")
