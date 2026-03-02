@@ -1,50 +1,43 @@
 import streamlit as st
 import gspread
 from google.oauth2 import service_account
-import re
 
-def conectar_definitivo():
+def conectar_con_filtro_total():
     try:
-        # Obtenemos los datos del cuadro de Secrets
         s = dict(st.secrets["gcp_service_account"])
-        pk = s["private_key"]
+        pk_sucia = s["private_key"]
 
-        # --- LIMPIEZA QUIRÚRGICA ---
-        # 1. Si la llave tiene \n escrito como texto, lo convertimos a salto real
-        pk = pk.replace("\\n", "\n")
-        
-        # 2. Extraemos solo lo que hay entre los guiones de BEGIN y END
-        # Esto elimina cualquier carácter extraño (como el guion bajo del error) que esté fuera
-        if "-----BEGIN PRIVATE KEY-----" in pk:
-            cuerpo = pk.split("-----BEGIN PRIVATE KEY-----")[1].split("-----END PRIVATE KEY-----")[0]
-            # Limpiamos espacios y saltos de línea vacíos del cuerpo
-            cuerpo = cuerpo.strip()
-            # Reconstruimos la llave perfecta
-            pk_limpia = f"-----BEGIN PRIVATE KEY-----\n{cuerpo}\n-----END PRIVATE KEY-----"
+        # 1. Extraemos el texto entre los encabezados
+        if "-----BEGIN PRIVATE KEY-----" in pk_sucia:
+            cuerpo = pk_sucia.split("-----BEGIN PRIVATE KEY-----")[1].split("-----END PRIVATE KEY-----")[0]
         else:
-            pk_limpia = pk.strip()
+            cuerpo = pk_sucia
 
-        s["private_key"] = pk_limpia
+        # 2. FILTRO RADICAL: Nos quedamos solo con caracteres válidos de Base64
+        # Esto elimina tildes, espacios raros, guiones bajos invisibles, etc.
+        caracteres_validos = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=\n"
+        cuerpo_limpio = "".join([c for c in cuerpo if c in caracteres_validos])
 
-        # Configuración de permisos
+        # 3. Reconstrucción perfecta
+        pk_final = f"-----BEGIN PRIVATE KEY-----\n{cuerpo_limpio.strip()}\n-----END PRIVATE KEY-----"
+        s["private_key"] = pk_final
+
         scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
         creds = service_account.Credentials.from_service_account_info(s, scopes=scopes)
         return gspread.authorize(creds)
     except Exception as e:
-        st.error(f"Error en el formato de la llave: {e}")
+        st.error(f"Error tras filtrado: {e}")
         return None
 
 # --- APP ---
 st.title("📊 Mi Panel de Inversión")
 
-gc = conectar_definitivo()
+gc = conectar_con_filtro_total()
 
 if gc:
     try:
-        # Abrimos tu archivo (asegúrate que el nombre sea exacto)
         sh = gc.open("Inversiondata")
-        st.success("✅ ¡CONECTADO!")
+        st.success("✅ ¡POR FIN CONECTADO!")
         st.dataframe(sh.get_worksheet(0).get_all_records())
     except Exception as e:
-        st.warning(f"Llave aceptada, pero no accedo al archivo: {e}")
-        st.info("Asegúrate de haber invitado a: python-app@careful-broker-395321.iam.gserviceaccount.com")
+        st.warning(f"La llave ya funciona, pero Google Sheets dice: {e}")
