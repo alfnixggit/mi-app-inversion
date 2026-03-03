@@ -1,67 +1,82 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-import urllib.parse
+import gspread
+from google.oauth2.service_account import Credentials
 
-# 1. TUS DIRECCIONES
-URL_LOG = "https://docs.google.com/spreadsheets/d/e/2PACX-1vT_BWK0W-ckq-8381mddbvScIyjaGyhsRUBBZhckjEmXZTjmCX-DE5rztmylPv6KAVJQVkhH3k9-YCm/pub?gid=1403494531&single=true&output=csv"
-URL_APP1 = "https://docs.google.com/spreadsheets/d/e/2PACX-1vT_BWK0W-ckq-8381mddbvScIyjaGyhsRUBBZhckjEmXZTjmCX-DE5rztmylPv6KAVJQVkhH3k9-YCm/pub?gid=153180669&single=true&output=csv"
-BASE_FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSfnR3UDEnLAg1hqNfS4vApGfAR3e-wT_WyMDMS_Xqg9rc0C-Q/viewform"
+# 1. TU LLAVE MAESTRA (JSON ya integrado)
+INFO_LLAVE = {
+  "type": "service_account",
+  "project_id": "careful-broker-395321",
+  "private_key_id": "75c0576acd9256ef5c04419f9e4a6df4d7a8c2e8",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDalENj9EncBiy9\nFly88YllR+2qMjrNbw7+vnde/I6TyFj1frmUXSWZeRXLv8TJbDxcIcOBoU8+TKcd\nQFbfnCSKdj6b6R+3zBi/+WboWcwYymvVHEm5avPvGfZLJktaZvfdy3ykZ2rDWa6l\nzFLTcjI24/wMuL1w/KowXF6Ji0xtyW6ohNBWy4BFMsILI5MaDqt6nT5FXkC6diG+\nkQ68lTCIFk8+aBVy8vEXQJuvq29KMst3qqYGtuIgZXkzwErnPqjyR9TXzVw06OYi\nRelcPjoqPsdP9rppMKBR11c0AKHnNb0yQKjWHZBawxGiFjySMdqpbEnN5qB7gy9V\I05TOJ13AgMBAAECggEAWqF7R+i071xIFKc/EMD9/VbTvuxQ4XmZOBt1l5cU70X1\nTOWcwV3WB0rjtLXxPKt6Y6FEVW2zU9uot0JEQzeVFyxsTW1eT3F7Ga6p8tG5BNZ5\n28V89DrapluXehWIzRVA1WBYcDrJU/LNrcWI2k/Rbl0d15CKTF0XnDHQqStvJ13I\nFAdvDE3NtlXcMDyr0HKRPt8ZsLyicVWZMIp/Ajp7PwA2mmqgKSP1HiX53MxcX7+n\nHfwbOSUG5M2avsQjuVblE92I1rho33C5kRxugNzyIE28tLQJ1IMdW7hW6efNw0IS\nesxLDnoX28byvYasIh9hwBYmJz6sRxZamkP5thSdsQKBgQD0fukuOkVGztRBc1oE\n7IKoR+Xn/i4RZl+sZd9qMBt5PI+FRsrp7OE2R8PNegN0tGaLZ7D7q14GrDl1AuRW\nq3zKafryhL93N2ph4lcDMgXLQEdFqQh5FUp2wa0+2MHcypQ1qyZ5JE2Qb0Dv5BkA\nBKLOtEQzbp38eT81/XIeqrskewKBgQDk3SwjQPmEBFzu/A3MiGqD300o3xrAPTHj\nAL6cKEy/BmIW31pyWewjb8MfPWEMWghAnLqXaMdczXURvAO0f1YJA0+cBjTrTbTY\mtf4+bVrMLynoeltPf8NodJhve4wFYd+LJSLbUGSxaq6/qitzU3k1Cp/MYKGwAzn\nMTspuPkwNQKBgC+4AVzTZKgAQC8SC3TAkHO1rKqN0oH04CFutJ8uCn6sEjrp6Tqk\n0APfF9knwjrp5sW4lDNaa/yTapdq3BQKXk3HR4JD5HapKys1mNP31GeqAP8YkZ3I\nSQNKo7yLY7LrGugqolSsgDL7c8oeU77MKNZ9Gn6LTWx0YaDw+XAA1Iu3AoGBAJAZ\ciEAWBp3ZMxUh5uwiOBfSQXi88T2wuJbJajM9wWPz1L3bstxMu1dAU46J1DPn0KP\nbCzJHD2iX4O7DdooEtO58fYbMla1pph7ZmCtWT0UgrRJjd/qmRzMNtqz67T62UTo\nbN8c+5yeONFkZnCIQ/NAY0GSusx9P6KRrN6oSL3BAoGAfL+YS5AWhmS9s0Xfeoo\n4vdah7Xq5gBuzgEGbDnTS+vObqrbbIjXsPZp6m+/pRWZ4Ct6yc87+j6tMhRCxE0e\nYb2UL6hIxzuBRv56xEzD1bJ10H4o2zLN8kKVqUIxVQhBpcPOA+lZhzG6DGrRn5IU\nE2UzrKE0vK+KW0Ny+rzxiq0=\n-----END PRIVATE KEY-----\n",
+  "client_email": "python-app@careful-broker-395321.iam.gserviceaccount.com",
+  "client_id": "108343647994793129429",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/python-app%40careful-broker-395321.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}
 
-st.set_page_config(page_title="InversionData", page_icon="💰")
-st.title("💰 Captación de Datos")
+# 2. CONEXIÓN
+SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
+creds = Credentials.from_service_account_info(INFO_LLAVE, scopes=SCOPES)
+client = gspread.authorize(creds)
+sheet_name = "Inversiondata"
+
+st.set_page_config(page_title="InversionData Direct", page_icon="⚡")
+st.title("⚡ Carga Directa (Sin Formularios)")
 
 hoy = datetime.now().strftime('%d/%m/%Y')
-st.info(f"Fecha de hoy: {hoy}")
 
-# 2. CARGA DE DATOS
 try:
-    df_v = pd.read_csv(URL_APP1)
-    # Forzamos limpieza de caché para leer el último dato real del Excel
-    df_l = pd.read_csv(URL_LOG)
-except:
-    st.error("Error cargando el Excel.")
+    sh = client.open(sheet_name)
+    # Leer activos de APP1
+    ws_activos = sh.worksheet("APP1")
+    activos = ws_activos.col_values(1) # Asume que los nombres están en la columna A
+    
+    # Leer LOG para proponer valores y semáforo
+    ws_log = sh.worksheet("LOG_MOV_PYTHON")
+    data_log = ws_log.get_all_values()
+    df_log = pd.DataFrame(data_log[1:], columns=data_log[0]) if len(data_log) > 1 else pd.DataFrame(columns=["FECHA", "ACTIVO", "VALOR"])
+except Exception as e:
+    st.error(f"Error de conexión: {e}")
     st.stop()
 
-# 3. INTERFAZ DE CARGA
-st.subheader("Introduce los valores de hoy:")
+# 3. INTERFAZ
+datos_a_guardar = {}
 
-for activo in df_v.iloc[:, 0]:
-    # BUSCAR ÚLTIMO VALOR PARA ESTE ACTIVO
-    registro_activo = df_l[df_l.iloc[:, 1] == activo]
-    ultimo_valor = ""
-    if not registro_activo.empty:
-        ultimo_valor = str(registro_activo.iloc[-1, 2]) # Coge el último de la columna VALOR
+for activo in activos:
+    # Buscar el último valor registrado para este activo
+    df_activo = df_log[df_log["ACTIVO"] == activo]
+    ultimo_val = df_activo.iloc[-1]["VALOR"] if not df_activo.empty else "0"
     
-    # Comprobar si ya se ha grabado HOY
-    ya_grabado = any((df_l.iloc[:, 1] == activo) & (df_l.iloc[:, 0].str.contains(hoy)))
+    # Comprobar si ya se grabó hoy
+    ya_existe = any((df_log["ACTIVO"] == activo) & (df_log["FECHA"] == hoy))
     
     col1, col2, col3 = st.columns([0.1, 0.5, 0.4])
-    
     with col1:
-        st.write("🟢" if ya_grabado else "🔴")
+        st.write("✅" if ya_existe else "⚪")
     with col2:
         st.write(f"**{activo}**")
     with col3:
-        # PROPUESTA: El campo ya viene con el último valor
-        valor = st.text_input("Importe", value=ultimo_valor, key=activo, label_visibility="collapsed")
-        
-        if valor:
-            params = {
-                "entry.1843422617": activo,
-                "entry.845943568": valor
-            }
-            url_rellena = f"{BASE_FORM_URL}?usp=pp_url&{urllib.parse.urlencode(params)}"
-            
-            st.markdown(f'''
-                <a href="{url_rellena}" target="_blank" style="text-decoration:none;">
-                    <div style="background-color:#28a745;color:white;padding:5px;text-align:center;border-radius:5px;font-size:12px;font-weight:bold;">
-                        ENVIAR {activo}
-                    </div>
-                </a>
-            ''', unsafe_allow_html=True)
+        # Propuesta automática del valor
+        valor = st.text_input("Importe", value=ultimo_val, key=activo, label_visibility="collapsed")
+        datos_a_guardar[activo] = valor
 
 st.divider()
-if st.button("🔄 Actualizar Semáforo"):
-    st.cache_data.clear() # Limpiamos para leer el nuevo dato enviado
-    st.rerun()
+
+# 4. BOTÓN DE GUARDADO ÚNICO
+if st.button("💾 GUARDAR TODO EN EL EXCEL", use_container_width=True):
+    nuevas_filas = []
+    for act, val in datos_a_guardar.items():
+        nuevas_filas.append([hoy, act, val])
+    
+    try:
+        ws_log.append_rows(nuevas_filas)
+        st.success("¡Datos guardados! Ya puedes cerrar la App.")
+        st.balloons()
+        st.rerun()
+    except Exception as e:
+        st.error(f"Error al guardar: {e}")
